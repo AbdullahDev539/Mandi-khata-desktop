@@ -195,7 +195,7 @@ function RoznamchaReport({ transactions, summary, onClose, onPrint }) {
   </div>;
 }
 
-function ConfirmModal({ title, message, onClose, onConfirm, bulk = false }) {
+function ConfirmModal({ title, message, onClose, onConfirm, bulk = false, buttonLabel = 'Delete' }) {
   const [confirmation, setConfirmation] = useState('');
   const ready = !bulk || confirmation === 'DELETE';
   return <div className="modal-backdrop" role="dialog" aria-modal="true">
@@ -203,7 +203,7 @@ function ConfirmModal({ title, message, onClose, onConfirm, bulk = false }) {
       <div className="modal-heading"><div><span className="eyebrow">Please confirm</span><h2>{title}</h2></div><button type="button" onClick={onClose} className="icon-button" aria-label="Close">×</button></div>
       <p className="confirm-message">{message}</p>
       {bulk && <label className="confirm-input">Type <strong>DELETE</strong> to continue<input autoFocus value={confirmation} onChange={(e) => setConfirmation(e.target.value)} placeholder="DELETE" /></label>}
-      <div className="modal-actions"><button className="button-secondary" onClick={onClose}>Cancel</button><button className="button-danger" disabled={!ready} onClick={onConfirm}>Delete permanently</button></div>
+      <div className="modal-actions"><button className="button-secondary" onClick={onClose}>Cancel</button><button className="button-danger" disabled={!ready} onClick={onConfirm}>{buttonLabel}</button></div>
     </div>
   </div>;
 }
@@ -227,17 +227,18 @@ function SettingsView({ profile, onSave, error, masterUnlocked, success }) {
   const [form, setForm] = useState({ ...profile, old_pin: '', new_pin: '' });
   useEffect(() => setForm(profile), [profile]);
   const set = (key, value) => setForm((current) => ({ ...current, [key]: value }));
+  const hasChanges = form.shop_number !== (profile.shop_number || '') || form.phone !== (profile.phone || '') || form.city !== (profile.city || '') || (form.old_pin && form.new_pin);
   return <div className="page-content standalone-page">
     {error && <div className="alert mb-4">{error}</div>}
     {success && <div className="alert-success mb-4">{success}</div>}
     <section className="panel settings-panel"><div className="panel-heading"><div><span className="eyebrow">Configuration</span><h2>Shop Profile / Settings</h2><span className="muted">These details appear on printed reports.</span></div></div>
       <form className="settings-form" onSubmit={(event) => { event.preventDefault(); onSave(form); }}>
-        <label>Shop name *<input required value={form.shop_name || ''} onChange={(e) => set('shop_name', e.target.value)} placeholder="Your shop name" /></label>
+        <label>Shop name<input required value={form.shop_name || ''} disabled placeholder="Your shop name" /></label>
         <label>Shop / commission agent no<input value={form.shop_number || ''} onChange={(e) => set('shop_number', e.target.value)} placeholder="e.g. Shop # 42" /></label>
         <label>Contact phone number<input value={form.phone || ''} onChange={(e) => set('phone', e.target.value)} placeholder="03xx-xxxxxxx" /></label>
         <label>Mandi address / city<input value={form.city || ''} onChange={(e) => set('city', e.target.value)} placeholder="e.g. Sabzi Mandi Lahore" /></label>
         <div className="pin-section"><span className="label-text">{masterUnlocked ? 'Reset PIN' : 'Change PIN'}</span><div className={masterUnlocked ? 'pin-grid single' : 'pin-grid'}>{!masterUnlocked && <label>Old PIN<PasswordInput maxLength="4" value={form.old_pin || ''} onChange={(e) => set('old_pin', e.target.value.replace(/\D/g, '').slice(0, 4))} placeholder="••••" placeholder_NO /></label>}<label>New 4-digit PIN<PasswordInput maxLength="4" value={form.new_pin || ''} onChange={(e) => set('new_pin', e.target.value.replace(/\D/g, '').slice(0, 4))} placeholder="••••" /></label></div></div>
-        <div className="modal-actions"><button className="button-primary" type="submit">Save Settings</button></div>
+        <div className="modal-actions"><button className="button-primary" type="submit" disabled={!hasChanges}>Save Settings</button></div>
       </form>
     </section>
   </div>;
@@ -295,50 +296,17 @@ function VirtualCustomerList({ customers, selectedId, onSelect }) {
 
 /* ---------- Virtualized customer details grid ---------- */
 function VirtualCustomerDetailsGrid({ customers, selectedId, onSelect, onEdit, onDelete, onPhotoClick, totals }) {
-  const scrollRef = useRef(null);
-  const CARD_HEIGHT = 78;
-  const CARD_GAP = 16;
-  const [columns, setColumns] = useState(2);
-
-  useEffect(() => {
-    if (!scrollRef.current) return;
-    const el = scrollRef.current;
-    const calcColumns = () => {
-      const width = el.clientWidth;
-      if (width < 500) setColumns(1);
-      else if (width < 800) setColumns(2);
-      else setColumns(3);
-    };
-    calcColumns();
-    const observer = new ResizeObserver(calcColumns);
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
-
-  const rows = Math.ceil(customers.length / columns);
-  const ROW_HEIGHT = CARD_HEIGHT + CARD_GAP;
-  const virtualizer = useVirtualizer({ count: rows, getScrollElement: () => scrollRef.current, estimateSize: () => ROW_HEIGHT, overscan: 4 });
-
-  return <div className="customer-details-scroll" ref={scrollRef}>
-    <div style={{ height: `${virtualizer.getTotalSize()}px`, width: '100%', position: 'relative' }}>
-      {virtualizer.getVirtualItems().map((virtualRow) => {
-        const rowIndex = virtualRow.index;
-        const startIdx = rowIndex * columns;
-        const cardsInRow = customers.slice(startIdx, startIdx + columns);
-        return <div key={`row-${rowIndex}`} className="customer-details-grid" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: `${virtualRow.size}px`, transform: `translateY(${virtualRow.start}px)`, display: 'grid', gridTemplateColumns: `repeat(${columns}, 1fr)`, gap: `${CARD_GAP}px` }}>
-          {cardsInRow.map((customer) => <div key={customer.id} className={`customer-detail-card ${selectedId === customer.id ? 'selected' : ''}`}>
-            <button className="customer-detail-card-body" onClick={() => onSelect(customer.id)}>
-              {customer.photo ? <img className="customer-detail-photo" src={photoUrl(customer.photo)} alt={`${customer.name} profile`} loading="lazy" onClick={(event) => { event.stopPropagation(); onPhotoClick(customer); }} /> : <div className="customer-detail-photo customer-detail-placeholder">{customer.name.slice(0, 1).toUpperCase()}</div>}
-              <span className="customer-detail-info"><strong>{customer.name}</strong><small>{customer.phone || 'No phone number saved'}</small><BalanceBadge value={customer.balance} compact />{totals[customer.id] && <small className="customer-total">Kul Total: {money(totals[customer.id].total)}</small>}</span>
-            </button>
-            <div className="customer-detail-actions">
-              <button className="icon-edit" title="Edit customer" onClick={() => onEdit(customer)}>✎</button>
-              <button className="icon-delete" title="Delete customer" onClick={() => onDelete(customer)}>✕</button>
-            </div>
-          </div>)}
-        </div>;
-      })}
-    </div>
+  return <div className="customer-details-grid-wrap">
+    {customers.map((customer) => <div key={customer.id} className={`customer-detail-card ${selectedId === customer.id ? 'selected' : ''}`}>
+      <button className="customer-detail-card-body" onClick={() => onSelect(customer.id)}>
+        {customer.photo ? <img className="customer-detail-photo" src={photoUrl(customer.photo)} alt={`${customer.name} profile`} loading="lazy" onClick={(event) => { event.stopPropagation(); onPhotoClick(customer); }} /> : <div className="customer-detail-photo customer-detail-placeholder">{customer.name.slice(0, 1).toUpperCase()}</div>}
+        <span className="customer-detail-info"><strong>{customer.name}</strong><small>{customer.phone || 'No phone number saved'}</small><BalanceBadge value={customer.balance} compact />{totals[customer.id] && <small className="customer-total">Kul Total: {money(totals[customer.id].total)}</small>}</span>
+      </button>
+      <div className="customer-detail-actions">
+        <button className="icon-edit" title="Edit customer" onClick={() => onEdit(customer)}>✎</button>
+        <button className="icon-delete" title="Delete customer" onClick={() => onDelete(customer)}>✕</button>
+      </div>
+    </div>)}
   </div>;
 }
 
@@ -425,7 +393,38 @@ function GlobalHistoryView({ transactions, customers, onDelete, onBulkDelete }) 
     </div>
       <div className="global-filters"><div className="search-wrap"><span>⌕</span><input className="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search customer, phone, notes..." /></div><label>Customer<select value={customerId} onChange={(e) => setCustomerId(e.target.value)}><option value="">All customers</option>{customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label><label>Type<select value={type} onChange={(e) => setType(e.target.value)}><option value="">All types</option><option value="DEBIT">Udhar / Debit</option><option value="CREDIT">☑ / Credit</option></select></label><label>From<input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} /></label><label>To<input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} /></label></div>
       <div className="bulk-date-row"><span>Select a date range above, then use:</span><button className="button-danger outline" disabled={!startDate || !endDate} onClick={() => onBulkDelete({ startDate, endDate, label: `transactions from ${startDate} to ${endDate}` })}>Delete Date Range</button><button className="button-secondary" onClick={() => { setSearch(''); setCustomerId(''); setType(''); setStartDate(''); setEndDate(''); setSelectedIds([]); }}>Clear Filters</button></div>
-      <div className="virtual-scroll-container history-scroll" ref={historyScrollRef} onScroll={(e) => { const el = e.currentTarget; el.classList.toggle('has-hscroll', el.scrollWidth > el.clientWidth); el.classList.toggle('has-vscroll', el.scrollHeight > el.clientHeight); }}><div className="history-table-header"><div className="history-header-cell"><input type="checkbox" checked={allVisibleSelected} onChange={toggleAll} aria-label="Select visible transactions" /></div><div className="history-header-cell">Date & time<small>taareekh</small></div><div className="history-header-cell">Customer<small>grahak</small></div><div className="history-header-cell" data-cols="phone">Phone<small>number</small></div><div className="history-header-cell">Udhar<small>Debit</small></div><div className="history-header-cell">Wasooli<small>Credit</small></div><div className="history-header-cell">Balance<small>baqaya</small></div><div className="history-header-cell">Kul Total<small>raakam</small></div><div className="history-header-cell">Notes<small>tafseelat</small></div></div><div style={{ height: `${historyVirtualizer.getTotalSize()}px`, width: '100%', position: 'relative' }}>{historyVirtualizer.getVirtualItems().map((virtualRow) => { const transaction = filtered[virtualRow.index]; return <div key={transaction.id} className={`history-row ${virtualRow.index % 2 === 0 ? 'row-striped' : ''} ${selectedIds.includes(transaction.id) ? 'row-selected' : ''}`} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: `${virtualRow.size}px`, transform: `translateY(${virtualRow.start}px)` }}><div className="history-cell"><input type="checkbox" checked={selectedIds.includes(transaction.id)} onChange={() => toggle(transaction.id)} aria-label={`Select transaction ${transaction.id}`} /></div><div className="history-cell"><strong>{dateLabel(transaction.date)}</strong><small>{timeLabel(transaction.date)}</small></div><div className="history-cell"><strong>{transaction.customer_name}</strong></div><div className="history-cell" data-customer><small>{transaction.customer_phone || '—'}</small></div><div className="history-cell debit-text">{transaction.type === 'DEBIT' ? money(transaction.amount) : '—'}</div><div className="history-cell credit-text">{transaction.type === 'CREDIT' ? money(transaction.amount) : '—'}</div><div className={`history-cell balance-cell ${balanceState(transaction.running_balance)}`}><strong>{money(Math.abs(transaction.running_balance))}</strong><small>{balanceLabel(transaction.running_balance)}</small></div><div className="history-cell amount-cell">{money(Number(transaction.amount))}</div><div className="history-cell notes-cell">{transaction.description || '—'}</div></div>; })}</div>{!filtered.length && <div style={{gridColumn: '1 / -1', textAlign: 'center', padding: 40, color: '#94a3b8'}}>No transactions match your filters.</div>}<div className="ledger-scroll-indicator-x" aria-hidden="true"></div><div className="ledger-scroll-indicator-y" aria-hidden="true"></div></div>
+            <div className="virtual-scroll-container history-scroll" ref={historyScrollRef} onScroll={(e) => { const el = e.currentTarget; el.classList.toggle('has-hscroll', el.scrollWidth > el.clientWidth); el.classList.toggle('has-vscroll', el.scrollHeight > el.clientHeight); }}>
+        <div className="history-table-header">
+          <div className="history-header-cell"><input type="checkbox" checked={allVisibleSelected} onChange={toggleAll} aria-label="Select visible transactions" /></div>
+          <div className="history-header-cell">Date & time<small>taareekh</small></div>
+          <div className="history-header-cell">Customer<small>grahak</small></div>
+          <div className="history-header-cell">Phone<small>number</small></div>
+          <div className="history-header-cell">Udhar<small>Debit</small></div>
+          <div className="history-header-cell">Wasooli<small>Credit</small></div>
+          <div className="history-header-cell">Balance<small>baqaya</small></div>
+          <div className="history-header-cell">Notes<small>tafseelat</small></div>
+          <div className="history-header-cell"></div>
+        </div>
+        <div style={{ height: `${historyVirtualizer.getTotalSize()}px`, width: '100%', position: 'relative' }}>
+          {historyVirtualizer.getVirtualItems().map((virtualRow) => {
+            const transaction = filtered[virtualRow.index];
+            return <div key={transaction.id} className={`history-row ${virtualRow.index % 2 === 0 ? 'row-striped' : ''} ${selectedIds.includes(transaction.id) ? 'row-selected' : ''}`} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: `${virtualRow.size}px`, transform: `translateY(${virtualRow.start}px)` }}>
+              <div className="history-cell"><input type="checkbox" checked={selectedIds.includes(transaction.id)} onChange={() => toggle(transaction.id)} aria-label={`Select transaction ${transaction.id}`} /></div>
+              <div className="history-cell"><strong>{dateLabel(transaction.date)}</strong><small>{timeLabel(transaction.date)}</small></div>
+              <div className="history-cell"><strong>{transaction.customer_name}</strong></div>
+              <div className="history-cell"><small>{transaction.customer_phone || '—'}</small></div>
+              <div className="history-cell debit-text">{transaction.type === 'DEBIT' ? money(transaction.amount) : '—'}</div>
+              <div className="history-cell credit-text">{transaction.type === 'CREDIT' ? money(transaction.amount) : '—'}</div>
+              <div className={`history-cell balance-cell ${balanceState(transaction.running_balance)}`}><strong>{money(Math.abs(transaction.running_balance))}</strong><small>{balanceLabel(transaction.running_balance)}</small></div>
+              <div className="history-cell notes-cell">{transaction.description || '—'}</div>
+              <div className="history-cell row-actions"><button onClick={() => onDelete(transaction)} title="Delete">✕</button></div>
+            </div>;
+          })}
+        </div>
+        {!filtered.length && <div style={{gridColumn: '1 / -1', textAlign: 'center', padding: 40, color: '#94a3b8'}}>No transactions match your filters.</div>}
+        <div className="ledger-scroll-indicator-x" aria-hidden="true"></div>
+        <div className="ledger-scroll-indicator-y" aria-hidden="true"></div>
+      </div>
     </section>
   </div>;
 }
@@ -468,7 +467,7 @@ function RecycleBinView({ items, onRestore, onPermanentDelete, onEmptyBin }) {
         <label>From<input type="date" value={dateStart} onChange={(e) => setDateStart(e.target.value)} /></label>
         <label>To<input type="date" value={dateEnd} onChange={(e) => setDateEnd(e.target.value)} /></label>
       </div>
-      <div className="virtual-scroll-container history-scroll" ref={recycleScrollRef} onScroll={(e) => { const el = e.currentTarget; el.classList.toggle('has-hscroll', el.scrollWidth > el.clientWidth); el.classList.toggle('has-vscroll', el.scrollHeight > el.clientHeight); }}>
+      <div className="virtual-scroll-container recycle-scroll" ref={recycleScrollRef} onScroll={(e) => { const el = e.currentTarget; el.classList.toggle('has-hscroll', el.scrollWidth > el.clientWidth); el.classList.toggle('has-vscroll', el.scrollHeight > el.clientHeight); }}>
         <div className="history-table-header">
           <div className="history-header-cell"><input type="checkbox" checked={allVisibleSelected} onChange={toggleAll} aria-label="Select all" /></div>
           <div className="history-header-cell">Type<small>qism</small></div>
@@ -618,8 +617,9 @@ export default function App() {
   const deleteCustomer = (customer) => {
     setConfirmAction({
       title: 'Delete customer?',
-      message: `Are you sure you want to delete "${customer.name}"? All their transactions will also be deleted permanently. This cannot be undone.`,
+      message: `Are you sure you want to delete "${customer.name}"? This customer and all their transactions will be moved to Recycle Bin.`,
       bulk: false,
+      buttonLabel: 'Delete',
       execute: async () => {
         await window.api.deleteCustomer(customer.id);
         setSelectedId((current) => current === customer.id ? null : current);
@@ -637,8 +637,9 @@ export default function App() {
   const deleteTransaction = (transaction) => {
     setConfirmAction({
       title: 'Delete transaction?',
-      message: `Delete this ${transaction.type === 'DEBIT' ? 'Udhar' : 'Wasooli'} entry of ${money(transaction.amount)}? The customer's balance will be recalculated.`,
+      message: `Delete this ${transaction.type === 'DEBIT' ? 'Udhar' : 'Wasooli'} entry of ${money(transaction.amount)}? This transaction will be moved to Recycle Bin.`,
       bulk: false,
+      buttonLabel: 'Delete',
       execute: async () => {
         await window.api.deleteTransaction(transaction.id);
         await Promise.all([refresh(), refreshGlobal(), loadTransactions(selectedId)]);
@@ -648,19 +649,21 @@ export default function App() {
   const deleteTransactionFromLedger = (transaction) => {
     setConfirmAction({
       title: 'Delete transaction?',
-      message: `Delete this ${transaction.type === 'DEBIT' ? 'Udhar' : 'Wasooli'} entry of ${money(transaction.amount)}? The customer's balance will be recalculated.`,
+      message: `Delete this ${transaction.type === 'DEBIT' ? 'Udhar' : 'Wasooli'} entry of ${money(transaction.amount)}? This transaction will be moved to Recycle Bin.`,
       bulk: false,
+      buttonLabel: 'Delete',
       execute: async () => {
         await window.api.deleteTransaction(transaction.id);
-        await Promise.all([refresh(), loadTransactions(selectedId)]);
+        await Promise.all([refresh(), refreshGlobal(), loadTransactions(selectedId), loadRecycleBin()]);
       }
     });
   };
   const requestBulkDelete = ({ ids, all, startDate, endDate, label }) => {
     setConfirmAction({
-      title: 'Bulk delete safeguard',
-      message: `You are about to permanently delete ${label}. This cannot be undone and all affected customer balances will be recalculated.`,
+      title: 'Bulk delete',
+      message: `${label} will be moved to Recycle Bin. Affected customer balances will be recalculated.`,
       bulk: true,
+      buttonLabel: 'Delete',
       execute: async () => {
         await window.api.deleteTransactionsBulk({ ids, all, startDate, endDate });
         await Promise.all([refresh(), refreshGlobal(), loadTransactions(selectedId)]);
@@ -702,6 +705,7 @@ export default function App() {
       title: 'Permanent delete?',
       message: 'This item will be permanently deleted and cannot be recovered. Are you sure?',
       bulk: false,
+      buttonLabel: 'Delete permanently',
       execute: async () => {
         await window.api.permanentDelete({ type, id });
         await Promise.all([refresh(), refreshGlobal(), loadRecycleBin()]);
@@ -713,6 +717,7 @@ export default function App() {
       title: 'Empty recycle bin?',
       message: 'All deleted items will be permanently removed. This cannot be undone.',
       bulk: true,
+      buttonLabel: 'Delete permanently',
       execute: async () => {
         await window.api.emptyRecycleBin();
         await Promise.all([refresh(), refreshGlobal(), loadRecycleBin()]);
@@ -790,6 +795,6 @@ export default function App() {
     {previewPhoto && <PhotoPreview photo={previewPhoto.photo} name={previewPhoto.name} onClose={() => setPreviewPhoto(null)} />}
     {modal === 'transaction' && <TransactionModal customers={customers} selectedId={selectedId} transaction={editingTransaction} onClose={() => { setModal(null); setEditingTransaction(null); }} onSave={saveTransaction} />}
     {modal === 'roznamcha' && <RoznamchaReport transactions={roznamcha} summary={summary} onClose={() => setModal(null)} onPrint={() => print('roznamcha')} />}
-    {confirmAction && <ConfirmModal title={confirmAction.title} message={confirmAction.message} bulk={confirmAction.bulk} onClose={() => setConfirmAction(null)} onConfirm={async () => { try { await confirmAction.execute(); setConfirmAction(null); } catch (e) { setError(e.message); setConfirmAction(null); } }} />}
+    {confirmAction && <ConfirmModal title={confirmAction.title} message={confirmAction.message} bulk={confirmAction.bulk} buttonLabel={confirmAction.buttonLabel} onClose={() => setConfirmAction(null)} onConfirm={async () => { try { await confirmAction.execute(); setConfirmAction(null); } catch (e) { setError(e.message); setConfirmAction(null); } }} />}
   </div>;
 }

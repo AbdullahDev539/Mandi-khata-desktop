@@ -611,7 +611,7 @@ export default function App() {
   }, [selected]);
 
   const saveCustomer = async (data) => {
-    try { const result = data.id ? await window.api.updateCustomer(data) : await window.api.addCustomer(data); setModal(null); await refresh(); setSelectedId(result.id); setView('customer-details'); }
+    try { const result = data.id ? await window.api.updateCustomer(data) : await window.api.addCustomer(data); setModal(null); await Promise.all([refresh(), refreshGlobal(), loadRecycleBin()]); setSelectedId(result.id); setView('customer-details'); }
     catch (e) { setError(e.message); }
   };
   const deleteCustomer = (customer) => {
@@ -623,7 +623,7 @@ export default function App() {
       execute: async () => {
         await window.api.deleteCustomer(customer.id);
         setSelectedId((current) => current === customer.id ? null : current);
-        await Promise.all([refresh(), refreshGlobal()]);
+        await Promise.all([refresh(), refreshGlobal(), loadRecycleBin()]);
       }
     });
   };

@@ -316,20 +316,22 @@ input:focus, select:focus { border-color: #16a34a; box-shadow: 0 0 0 3px #16a34a
   .a4-page td.text-right, .a4-page th.text-right { text-align: right; }
   .a4-page .print-summary { page-break-inside: avoid; break-inside: avoid; }
 
-  .customer-report table { table-layout: fixed; font-size: 9px; width: 100%; border-collapse: collapse; }
+  .customer-report table { table-layout: auto; font-size: 9px; width: 100%; border-collapse: collapse; }
   .customer-report thead { display: table-header-group; }
   .customer-report thead .shop-name-row th { background: #fff; color: #111; font-size: 14px; font-weight: 900; text-align: center; padding: 8px 6px; border: 1px solid #999; }
   .customer-report thead tr:not(.shop-name-row) th { background: #eee; color: #111; font-size: 9px; }
   .customer-report tr { page-break-inside: auto; }
-  .customer-report th, .customer-report td { padding: 3px 4px; border: 1px solid #999; overflow: hidden; }
+  .customer-report th, .customer-report td { padding: 3px 4px; border: 1px solid #999; word-break: break-word; overflow-wrap: anywhere; white-space: normal; vertical-align: top; }
   .customer-report th:nth-child(1), .customer-report td:nth-child(1) { width: 4%; white-space: nowrap; text-align: center; }
-  .customer-report th:nth-child(2), .customer-report td:nth-child(2) { width: 17%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .customer-report th:nth-child(3), .customer-report td:nth-child(3) { width: 12%; white-space: nowrap; }
-  .customer-report th:nth-child(4), .customer-report td:nth-child(4) { width: 12%; text-align: right; }
-  .customer-report th:nth-child(5), .customer-report td:nth-child(5) { width: 12%; text-align: right; }
-  .customer-report th:nth-child(6), .customer-report td:nth-child(6) { width: 14%; text-align: right; }
-  .customer-report th:nth-child(7), .customer-report td:nth-child(7) { width: 14%; text-align: right; }
-  .customer-report th:nth-child(8), .customer-report td:nth-child(8) { width: 15%; text-align: right; }
+  .customer-report th:nth-child(2), .customer-report td:nth-child(2) { width: 18%; }
+  .customer-report th:nth-child(3), .customer-report td:nth-child(3) { width: 11%; }
+  .customer-report th:nth-child(4), .customer-report td:nth-child(4) { width: 11%; text-align: right; }
+  .customer-report th:nth-child(5), .customer-report td:nth-child(5) { width: 11%; text-align: right; }
+  .customer-report th:nth-child(6), .customer-report td:nth-child(6) { width: 13%; text-align: right; }
+  .customer-report th:nth-child(7), .customer-report td:nth-child(7) { width: 13%; text-align: right; }
+  .customer-report th:nth-child(8), .customer-report td:nth-child(8) { width: 13%; text-align: right; }
+  .customer-report tfoot { display: table-row-group; }
+  .customer-report tfoot th { page-break-inside: avoid; }
   .customer-report .print-meta { page-break-after: avoid; }
   .customer-report .print-grand-total { page-break-before: avoid; }
   .amount-cell { word-break: break-all; overflow-wrap: anywhere; white-space: normal; text-align: right; padding: 1px 3px; }

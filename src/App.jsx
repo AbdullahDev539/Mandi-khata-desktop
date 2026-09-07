@@ -277,20 +277,12 @@ function PhotoPreview({ photo, name, onClose }) {
 
 /* ---------- Virtualized customer list (dashboard) ---------- */
 function VirtualCustomerList({ customers, selectedId, onSelect }) {
-  const scrollRef = useRef(null);
-  const ROW_HEIGHT = 62;
-  const virtualizer = useVirtualizer({ count: customers.length, getScrollElement: () => scrollRef.current, estimateSize: () => ROW_HEIGHT, overscan: 12 });
-  return <div className="customer-list virtual-customer-list" ref={scrollRef}>
-    <div style={{ height: `${virtualizer.getTotalSize()}px`, width: '100%', position: 'relative' }}>
-      {virtualizer.getVirtualItems().map((virtualRow) => {
-        const c = customers[virtualRow.index];
-        return <button key={c.id} onClick={() => onSelect(c.id)} className={selectedId === c.id ? 'customer-row selected' : 'customer-row'} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: `${virtualRow.size}px`, transform: `translateY(${virtualRow.start}px)` }}>
-          {c.photo ? <img className="customer-avatar" src={photoUrl(c.photo)} alt="" loading="lazy" /> : <div className="customer-avatar">{c.name.slice(0, 1).toUpperCase()}</div>}
-          <div className="customer-info"><strong>{c.name}</strong><small>{c.phone || 'No phone number'}</small></div>
-          <BalanceBadge value={c.balance} compact />
-        </button>;
-      })}
-    </div>
+  return <div className="customer-list customer-list-scroll">
+    {customers.map((c) => <button key={c.id} onClick={() => onSelect(c.id)} className={selectedId === c.id ? 'customer-row selected' : 'customer-row'}>
+      {c.photo ? <img className="customer-avatar" src={photoUrl(c.photo)} alt="" loading="lazy" /> : <div className="customer-avatar">{c.name.slice(0, 1).toUpperCase()}</div>}
+      <div className="customer-info"><strong>{c.name}</strong><small>{c.phone || 'No phone number'}</small></div>
+      <BalanceBadge value={c.balance} compact />
+    </button>)}
   </div>;
 }
 
@@ -322,12 +314,9 @@ function CustomerDetailsView({ customers, selectedId, onSelect, onAdd, onEdit, o
   </div>;
 }
 
-/* ---------- Virtualized ledger table ---------- */
+/* ---------- Ledger table ---------- */
 function VirtualLedgerTable({ transactions, onEdit, onDelete }) {
-  const scrollRef = useRef(null);
-  const ROW_HEIGHT = 48;
-  const virtualizer = useVirtualizer({ count: transactions.length, getScrollElement: () => scrollRef.current, estimateSize: () => ROW_HEIGHT, overscan: 12 });
-  return <div className="virtual-ledger-scroll" ref={scrollRef}>
+  return <div className="virtual-ledger-scroll">
     <div className="ledger-header-row">
       <div className="lcell lcell-date">Date</div>
       <div className="lcell lcell-desc">Description</div>
@@ -336,31 +325,28 @@ function VirtualLedgerTable({ transactions, onEdit, onDelete }) {
       <div className="lcell lcell-balance">Balance</div>
       <div className="lcell lcell-actions"></div>
     </div>
-    <div style={{ height: `${virtualizer.getTotalSize()}px`, width: '100%', position: 'relative' }}>
-      {virtualizer.getVirtualItems().map((virtualRow) => {
-        const t = transactions[virtualRow.index];
-        return <div key={t.id} className={`virtual-ledger-row ${virtualRow.index % 2 === 0 ? 'row-striped' : ''}`} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: `${virtualRow.size}px`, transform: `translateY(${virtualRow.start}px)` }}>
-          <div className="ledger-cell"><strong>{dateLabel(t.date)}</strong><small>{timeLabel(t.date)}</small></div>
-          <div className="ledger-cell desc-cell">{t.description || '—'}</div>
-          <div className="ledger-cell text-right debit-text">{t.type === 'DEBIT' ? money(t.amount) : '—'}</div>
-          <div className="ledger-cell text-right credit-text">{t.type === 'CREDIT' ? money(t.amount) : '—'}</div>
-          <div className={`ledger-cell text-right balance-cell ${balanceState(t.running_balance)}`}>{money(Math.abs(t.running_balance))}<small>{balanceLabel(t.running_balance)}</small></div>
-          <div className="ledger-cell row-actions"><button onClick={() => onEdit(t)} aria-label="Edit transaction">✎</button><button onClick={() => onDelete(t)} aria-label="Delete transaction">⌫</button></div>
-        </div>;
-      })}
-    </div>
+    {transactions.map((t, i) => <div key={t.id} className={`virtual-ledger-row ${i % 2 === 0 ? 'row-striped' : ''}`}>
+      <div className="ledger-cell"><strong>{dateLabel(t.date)}</strong><small>{timeLabel(t.date)}</small></div>
+      <div className="ledger-cell desc-cell">{t.description || '—'}</div>
+      <div className="ledger-cell text-right debit-text">{t.type === 'DEBIT' ? money(t.amount) : '—'}</div>
+      <div className="ledger-cell text-right credit-text">{t.type === 'CREDIT' ? money(t.amount) : '—'}</div>
+      <div className={`ledger-cell text-right balance-cell ${balanceState(t.running_balance)}`}>{money(Math.abs(t.running_balance))}<small>{balanceLabel(t.running_balance)}</small></div>
+      <div className="ledger-cell row-actions"><button onClick={() => onEdit(t)} aria-label="Edit transaction">✎</button><button onClick={() => onDelete(t)} aria-label="Delete transaction">⌫</button></div>
+    </div>)}
   </div>;
 }
 
 function GlobalHistoryView({ transactions, customers, onDelete, onBulkDelete }) {
+  const now = new Date();
+  const currentMonthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+  const currentMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  const currentMonthEndStr = `${currentMonthEnd.getFullYear()}-${String(currentMonthEnd.getMonth() + 1).padStart(2, '0')}-${String(currentMonthEnd.getDate()).padStart(2, '0')}`;
   const [search, setSearch] = useState('');
   const [customerId, setCustomerId] = useState('');
   const [type, setType] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const [startDate, setStartDate] = useState(currentMonthStart);
+  const [endDate, setEndDate] = useState(currentMonthEndStr);
   const [selectedIds, setSelectedIds] = useState([]);
-  const historyScrollRef = useRef(null);
-  const ROW_HEIGHT = 48;
   const transactionsWithBalance = useMemo(() => {
     const ordered = [...transactions].sort((a, b) => {
       const dateDifference = new Date(a.date).getTime() - new Date(b.date).getTime();
@@ -383,7 +369,6 @@ function GlobalHistoryView({ transactions, customers, onDelete, onBulkDelete }) 
       (!type || transaction.type === type) &&
       (!startDate || date >= startDate) && (!endDate || date <= endDate);
   }), [transactionsWithBalance, search, customerId, type, startDate, endDate]);
-  const historyVirtualizer = useVirtualizer({ count: filtered.length, getScrollElement: () => historyScrollRef.current, estimateSize: () => ROW_HEIGHT, overscan: 15 });
   const allVisibleSelected = filtered.length > 0 && filtered.every((transaction) => selectedIds.includes(transaction.id));
   const toggle = (id) => setSelectedIds((ids) => ids.includes(id) ? ids.filter((item) => item !== id) : [...ids, id]);
   const toggleAll = () => setSelectedIds(allVisibleSelected ? [] : filtered.map((transaction) => transaction.id));
@@ -392,8 +377,8 @@ function GlobalHistoryView({ transactions, customers, onDelete, onBulkDelete }) 
       <div className="bulk-actions"><button className="button-danger" disabled={!selectedIds.length} onClick={() => onBulkDelete({ ids: selectedIds, label: `${selectedIds.length} selected transaction(s)` })}>Delete Selected</button><button className="button-danger outline" onClick={() => onBulkDelete({ all: true, label: 'all transactions' })}>Delete All</button></div>
     </div>
       <div className="global-filters"><div className="search-wrap"><span>⌕</span><input className="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search customer, phone, notes..." /></div><label>Customer<select value={customerId} onChange={(e) => setCustomerId(e.target.value)}><option value="">All customers</option>{customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label><label>Type<select value={type} onChange={(e) => setType(e.target.value)}><option value="">All types</option><option value="DEBIT">Udhar / Debit</option><option value="CREDIT">☑ / Credit</option></select></label><label>From<input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} /></label><label>To<input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} /></label></div>
-      <div className="bulk-date-row"><span>Select a date range above, then use:</span><button className="button-danger outline" disabled={!startDate || !endDate} onClick={() => onBulkDelete({ startDate, endDate, label: `transactions from ${startDate} to ${endDate}` })}>Delete Date Range</button><button className="button-secondary" onClick={() => { setSearch(''); setCustomerId(''); setType(''); setStartDate(''); setEndDate(''); setSelectedIds([]); }}>Clear Filters</button></div>
-            <div className="virtual-scroll-container history-scroll" ref={historyScrollRef} onScroll={(e) => { const el = e.currentTarget; el.classList.toggle('has-hscroll', el.scrollWidth > el.clientWidth); el.classList.toggle('has-vscroll', el.scrollHeight > el.clientHeight); }}>
+      <div className="bulk-date-row"><span>Select a date range above, then use:</span><button className="button-danger outline" disabled={!startDate || !endDate} onClick={() => onBulkDelete({ startDate, endDate, label: `transactions from ${startDate} to ${endDate}` })}>Delete Date Range</button><button className="button-secondary" onClick={() => { setSearch(''); setCustomerId(''); setType(''); setStartDate(currentMonthStart); setEndDate(currentMonthEndStr); setSelectedIds([]); }}>Clear Filters</button></div>
+            <div className="virtual-scroll-container history-scroll" onScroll={(e) => { const el = e.currentTarget; el.classList.toggle('has-hscroll', el.scrollWidth > el.clientWidth); el.classList.toggle('has-vscroll', el.scrollHeight > el.clientHeight); }}>
         <div className="history-table-header">
           <div className="history-header-cell"><input type="checkbox" checked={allVisibleSelected} onChange={toggleAll} aria-label="Select visible transactions" /></div>
           <div className="history-header-cell">Date & time<small>taareekh</small></div>
@@ -405,10 +390,7 @@ function GlobalHistoryView({ transactions, customers, onDelete, onBulkDelete }) 
           <div className="history-header-cell">Notes<small>tafseelat</small></div>
           <div className="history-header-cell"></div>
         </div>
-        <div style={{ height: `${historyVirtualizer.getTotalSize()}px`, width: '100%', position: 'relative' }}>
-          {historyVirtualizer.getVirtualItems().map((virtualRow) => {
-            const transaction = filtered[virtualRow.index];
-            return <div key={transaction.id} className={`history-row ${virtualRow.index % 2 === 0 ? 'row-striped' : ''} ${selectedIds.includes(transaction.id) ? 'row-selected' : ''}`} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: `${virtualRow.size}px`, transform: `translateY(${virtualRow.start}px)` }}>
+        {filtered.map((transaction, i) => <div key={transaction.id} className={`history-row ${i % 2 === 0 ? 'row-striped' : ''} ${selectedIds.includes(transaction.id) ? 'row-selected' : ''}`}>
               <div className="history-cell"><input type="checkbox" checked={selectedIds.includes(transaction.id)} onChange={() => toggle(transaction.id)} aria-label={`Select transaction ${transaction.id}`} /></div>
               <div className="history-cell"><strong>{dateLabel(transaction.date)}</strong><small>{timeLabel(transaction.date)}</small></div>
               <div className="history-cell"><strong>{transaction.customer_name}</strong></div>
@@ -418,26 +400,24 @@ function GlobalHistoryView({ transactions, customers, onDelete, onBulkDelete }) 
               <div className={`history-cell balance-cell ${balanceState(transaction.running_balance)}`}><strong>{money(Math.abs(transaction.running_balance))}</strong><small>{balanceLabel(transaction.running_balance)}</small></div>
               <div className="history-cell notes-cell">{transaction.description || '—'}</div>
               <div className="history-cell row-actions"><button onClick={() => onDelete(transaction)} title="Delete">✕</button></div>
-            </div>;
-          })}
-        </div>
+            </div>)}
         {!filtered.length && <div style={{gridColumn: '1 / -1', textAlign: 'center', padding: 40, color: '#94a3b8'}}>No transactions match your filters.</div>}
-        <div className="ledger-scroll-indicator-x" aria-hidden="true"></div>
-        <div className="ledger-scroll-indicator-y" aria-hidden="true"></div>
       </div>
     </section>
   </div>;
 }
 
 function RecycleBinView({ items, onRestore, onPermanentDelete, onEmptyBin }) {
+  const now = new Date();
+  const currentMonthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+  const currentMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  const currentMonthEndStr = `${currentMonthEnd.getFullYear()}-${String(currentMonthEnd.getMonth() + 1).padStart(2, '0')}-${String(currentMonthEnd.getDate()).padStart(2, '0')}`;
   const [tab, setTab] = useState('all');
   const [search, setSearch] = useState('');
-  const [dateStart, setDateStart] = useState('');
-  const [dateEnd, setDateEnd] = useState('');
+  const [dateStart, setDateStart] = useState(currentMonthStart);
+  const [dateEnd, setDateEnd] = useState(currentMonthEndStr);
   const [selectedIds, setSelectedIds] = useState([]);
   const [loading, setLoading] = useState(false);
-  const recycleScrollRef = useRef(null);
-  const ROW_HEIGHT = 48;
   const filtered = useMemo(() => items.filter((item) => {
     const matchesTab = tab === 'all' ? true : tab === 'customers' ? item.type === 'customer' : item.type === 'transaction';
     const haystack = [item.name, item.customer_name, item.phone, item.customer_phone, item.description, item.shop_number].map((v) => (v || '').toLowerCase()).join(' ');
@@ -446,7 +426,6 @@ function RecycleBinView({ items, onRestore, onPermanentDelete, onEmptyBin }) {
     const matchesDate = (!dateStart || deletedDate >= dateStart) && (!dateEnd || deletedDate <= dateEnd);
     return matchesTab && matchesSearch && matchesDate;
   }), [items, tab, search, dateStart, dateEnd]);
-  const recycleVirtualizer = useVirtualizer({ count: filtered.length, getScrollElement: () => recycleScrollRef.current, estimateSize: () => ROW_HEIGHT, overscan: 15 });
   const allVisibleSelected = filtered.length > 0 && filtered.every((item) => selectedIds.includes(`${item.type}-${item.id}`));
   const toggle = (key) => setSelectedIds((ids) => ids.includes(key) ? ids.filter((k) => k !== key) : [...ids, key]);
   const toggleAll = () => setSelectedIds(allVisibleSelected ? [] : filtered.map((item) => `${item.type}-${item.id}`));
@@ -467,7 +446,7 @@ function RecycleBinView({ items, onRestore, onPermanentDelete, onEmptyBin }) {
         <label>From<input type="date" value={dateStart} onChange={(e) => setDateStart(e.target.value)} /></label>
         <label>To<input type="date" value={dateEnd} onChange={(e) => setDateEnd(e.target.value)} /></label>
       </div>
-      <div className="virtual-scroll-container recycle-scroll" ref={recycleScrollRef} onScroll={(e) => { const el = e.currentTarget; el.classList.toggle('has-hscroll', el.scrollWidth > el.clientWidth); el.classList.toggle('has-vscroll', el.scrollHeight > el.clientHeight); }}>
+      <div className="virtual-scroll-container recycle-scroll" onScroll={(e) => { const el = e.currentTarget; el.classList.toggle('has-hscroll', el.scrollWidth > el.clientWidth); el.classList.toggle('has-vscroll', el.scrollHeight > el.clientHeight); }}>
         <div className="history-table-header">
           <div className="history-header-cell"><input type="checkbox" checked={allVisibleSelected} onChange={toggleAll} aria-label="Select all" /></div>
           <div className="history-header-cell">Type<small>qism</small></div>
@@ -480,11 +459,9 @@ function RecycleBinView({ items, onRestore, onPermanentDelete, onEmptyBin }) {
           <div className="history-header-cell">Notes<small>tafseelat</small></div>
           <div className="history-header-cell">Actions<small>amal</small></div>
         </div>
-        <div style={{ height: `${recycleVirtualizer.getTotalSize()}px`, width: '100%', position: 'relative' }}>
-          {recycleVirtualizer.getVirtualItems().map((virtualRow) => {
-            const item = filtered[virtualRow.index];
+        {filtered.map((item, i) => {
             const key = `${item.type}-${item.id}`;
-            return <div key={key} className={`history-row ${virtualRow.index % 2 === 0 ? 'row-striped' : ''} ${selectedIds.includes(key) ? 'row-selected' : ''}`} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: `${virtualRow.size}px`, transform: `translateY(${virtualRow.start}px)` }}>
+            return <div key={key} className={`history-row ${i % 2 === 0 ? 'row-striped' : ''} ${selectedIds.includes(key) ? 'row-selected' : ''}`}>
               <div className="history-cell"><input type="checkbox" checked={selectedIds.includes(key)} onChange={() => toggle(key)} aria-label="Select item" /></div>
               <div className="history-cell"><span className={`recycle-type-pill ${item.type}`}>{item.type === 'customer' ? 'Customer' : 'Tx'}</span></div>
               <div className="history-cell"><strong>{item.deletedAt ? dateLabel(item.deletedAt) : '—'}</strong><small>{item.deletedAt ? timeLabel(item.deletedAt) : ''}</small></div>
@@ -497,10 +474,7 @@ function RecycleBinView({ items, onRestore, onPermanentDelete, onEmptyBin }) {
               <div className="history-cell row-actions"><button onClick={() => onRestore({ type: item.type, id: item.id })} title="Restore">↻</button><button onClick={() => onPermanentDelete({ type: item.type, id: item.id })} title="Delete permanently">✕</button></div>
             </div>;
           })}
-        </div>
         {!filtered.length && <div style={{gridColumn: '1 / -1', textAlign: 'center', padding: 40, color: '#94a3b8'}}>{items.length ? 'No deleted items match your filters.' : 'Recycle bin is empty.'}</div>}
-        <div className="ledger-scroll-indicator-x" aria-hidden="true"></div>
-        <div className="ledger-scroll-indicator-y" aria-hidden="true"></div>
       </div>
     </section>
   </div>;

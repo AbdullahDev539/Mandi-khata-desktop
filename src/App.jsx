@@ -2,22 +2,28 @@ import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual';
 
 const money = (value) => `Rs. ${Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const transactionDate = (value) => {
+  if (!value) return null;
+  let date;
+  if (value.includes('T')) {
+    date = new Date(value);
+  } else {
+    date = new Date(value + 'Z');
+  }
+  return Number.isNaN(date.getTime()) ? null : date;
+};
 const dateLabel = (value) => {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  const date = transactionDate(value);
+  return !date ? '—' : date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 };
 const timeLabel = (value) => {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+  const date = transactionDate(value);
+  return !date ? '—' : date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
 };
 const today = () => {
   const date = new Date();
   date.setHours(0, 0, 0, 0);
   return date;
-};
-const transactionDate = (value) => {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date;
 };
 const localDateKey = (value) => {
   const date = transactionDate(value);
@@ -406,7 +412,7 @@ function GlobalHistoryView({ transactions, customers, onDelete, onBulkDelete }) 
   </div>;
 }
 
-function RecycleBinView({ items, onRestore, onPermanentDelete, onEmptyBin }) {
+function RecycleBinView({ items, onRestore, onPermanentDelete, onBulkPermanentDelete, onEmptyBin, onBulkComplete }) {
   const now = new Date();
   const currentMonthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
   const currentMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
@@ -428,8 +434,8 @@ function RecycleBinView({ items, onRestore, onPermanentDelete, onEmptyBin }) {
   const allVisibleSelected = filtered.length > 0 && filtered.every((item) => selectedIds.includes(`${item.type}-${item.id}`));
   const toggle = (key) => setSelectedIds((ids) => ids.includes(key) ? ids.filter((k) => k !== key) : [...ids, key]);
   const toggleAll = () => setSelectedIds(allVisibleSelected ? [] : filtered.map((item) => `${item.type}-${item.id}`));
-  const handleBulkRestore = async () => { setLoading(true); for (const key of selectedIds) { const [type, id] = key.split('-'); await onRestore({ type, id: Number(id) }); } setSelectedIds([]); setLoading(false); };
-  const handleBulkPermanentDelete = async () => { setLoading(true); for (const key of selectedIds) { const [type, id] = key.split('-'); await onPermanentDelete({ type, id: Number(id) }); } setSelectedIds([]); setLoading(false); };
+  const handleBulkRestore = async () => { setLoading(true); for (const key of selectedIds) { const [type, id] = key.split('-'); await window.api.restoreItem({ type, id: Number(id) }); } setSelectedIds([]); setLoading(false); onBulkComplete?.(); };
+  const handleBulkPermanentDelete = () => onBulkPermanentDelete?.(selectedIds, () => setSelectedIds([]));
   return <div className="page-content standalone-page">
     <section className="panel global-history-panel">
       <div className="panel-heading ledger-heading"><div><span className="eyebrow">Recover or remove</span><h2>Recycle Bin</h2><span className="muted">{items.length} deleted item{items.length !== 1 ? 's' : ''}</span></div>
@@ -584,7 +590,7 @@ export default function App() {
   }, [selected]);
 
   const saveCustomer = async (data) => {
-    try { const result = data.id ? await window.api.updateCustomer(data) : await window.api.addCustomer(data); setModal(null); await Promise.all([refresh(), refreshGlobal(), loadRecycleBin()]); setSelectedId(result.id); setView('customer-details'); }
+    try { const result = data.id ? await window.api.updateCustomer(data) : await window.api.addCustomer(data); setModal(null); await Promise.all([refresh(), refreshGlobal(), loadRecycleBin()]); setSelectedId(result.id); setSuccess(data.id ? 'Customer updated successfully!' : 'Customer added successfully!'); setTimeout(() => setSuccess(''), 3000); }
     catch (e) { setError(e.message); }
   };
   const deleteCustomer = (customer) => {
@@ -615,7 +621,7 @@ export default function App() {
       buttonLabel: 'Delete',
       execute: async () => {
         await window.api.deleteTransaction(transaction.id);
-        await Promise.all([refresh(), refreshGlobal(), loadTransactions(selectedId)]);
+        await Promise.all([refresh(), refreshGlobal(), loadTransactions(selectedId), loadRecycleBin()]);
       }
     });
   };
@@ -639,7 +645,7 @@ export default function App() {
       buttonLabel: 'Delete',
       execute: async () => {
         await window.api.deleteTransactionsBulk({ ids, all, startDate, endDate });
-        await Promise.all([refresh(), refreshGlobal(), loadTransactions(selectedId)]);
+        await Promise.all([refresh(), refreshGlobal(), loadTransactions(selectedId), loadRecycleBin()]);
       }
     });
   };
@@ -697,6 +703,19 @@ export default function App() {
       }
     });
   };
+  const bulkPermanentDeleteRecycleBin = (selectedIds, clearSelection) => {
+    setConfirmAction({
+      title: 'Delete permanently?',
+      message: `Are you sure you want to permanently delete ${selectedIds.length} selected item${selectedIds.length > 1 ? 's' : ''}? This cannot be undone.`,
+      bulk: true,
+      buttonLabel: 'Delete permanently',
+      execute: async () => {
+        for (const key of selectedIds) { const [type, id] = key.split('-'); await window.api.permanentDelete({ type, id: Number(id) }); }
+        clearSelection();
+        await Promise.all([refresh(), refreshGlobal(), loadRecycleBin()]);
+      }
+    });
+  };
   const printAllCustomers = async () => {
     try {
       const [latestCustomers, latestTransactions] = await Promise.all([window.api.getCustomers(), window.api.getAllTransactions()]);
@@ -742,6 +761,7 @@ export default function App() {
       <header className="topbar"><div className="topbar-inner"><div className="brand"><div className="brand-mark">MK</div><div className="brand-text"><h1>{profile.shop_name || 'Mandi Khata'}</h1><p>{profile.city || 'Offline Ledger'} <span>·</span> {profile.phone || 'Local data'}</p></div></div><div className="header-actions"><button className="button-light" onClick={openRoznamcha}>▣ Today's Roznamcha</button><button className="button-light" onClick={printAllCustomers}>Print Customers Report</button><button className="button-primary header-transaction" onClick={() => setModal('transaction')}>＋ Quick Transaction <kbd>F3</kbd></button></div></div></header>
       {view === 'dashboard' && <main className="page-content">
         {error && <div className="alert mb-4">{error}<button onClick={() => setError('')} aria-label="Dismiss">×</button></div>}
+        {success && <div className="alert-success mb-4">{success}<button onClick={() => setSuccess('')} aria-label="Dismiss">×</button></div>}
         <div className="summary-filter">{[['today', 'Today'], ['weekly', 'This Week'], ['monthly', 'This Month'], ['all', 'All Time']].map(([key, label]) => <button key={key} className={summaryFilter === key ? 'active' : ''} onClick={() => setSummaryFilter(key)}>{label}</button>)}</div>
         <div className="summary-grid">
         <div className="summary-card debit"><div className="summary-icon">↗</div><span>{summaryFilter === 'today' ? "Today's Udhar" : summaryFilter === 'weekly' ? "This Week's Udhar" : summaryFilter === 'monthly' ? "This Month's Udhar" : "Total Udhar"} <small>{summaryFilter === 'today' ? 'aaj ka udhar' : summaryFilter === 'weekly' ? 'is hafte ka udhar' : summaryFilter === 'monthly' ? 'is mahine ka udhar' : 'kul udhar'} · Debit</small></span><strong>{money(filteredSummary.debit)}</strong></div>
@@ -757,7 +777,7 @@ export default function App() {
       {view === 'settings' && <SettingsView profile={profile} onSave={saveProfile} error={error} masterUnlocked={masterUnlocked} success={success} />}
       {view === 'customer-details' && <CustomerDetailsView customers={customers} selectedId={selectedId} onSelect={setSelectedId} onAdd={() => setModal('customer')} onEdit={(customer) => { setSelectedId(customer.id); setModal('edit'); }} onDelete={deleteCustomer} onPhotoClick={setPreviewPhoto} totals={customerTotals} />}
       {view === 'global-history' && <GlobalHistoryView transactions={allTransactions} customers={customers} onDelete={deleteTransaction} onBulkDelete={requestBulkDelete} />}
-      {view === 'recycle-bin' && <RecycleBinView items={recycleBinItems} onRestore={restoreRecycleItem} onPermanentDelete={permanentDeleteRecycleItem} onEmptyBin={emptyRecycleBin} />}
+      {view === 'recycle-bin' && <RecycleBinView items={recycleBinItems} onRestore={restoreRecycleItem} onPermanentDelete={permanentDeleteRecycleItem} onBulkPermanentDelete={bulkPermanentDeleteRecycleBin} onEmptyBin={emptyRecycleBin} onBulkComplete={() => Promise.all([refresh(), refreshGlobal(), loadRecycleBin()])} />}
       </div>
     </div>
     <A4LedgerPrint customer={selected} transactions={transactions} profile={profile} active={printMode === 'ledger'} />

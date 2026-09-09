@@ -6,6 +6,11 @@ import Database from 'better-sqlite3';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+function localNow() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
+}
+
 let database;
 const authorizedMasterWindows = new Set();
 const developerMasterPin = process.env.MANDI_MASTER_PIN || '998877';
@@ -226,7 +231,7 @@ function registerIpcHandlers() {
 
   ipcMain.handle('delete-customer', (_event, customerId) => {
     if (!customerId) throw new Error('Customer id is required');
-    const now = new Date().toISOString();
+    const now = localNow();
     const result = database.prepare('UPDATE customers SET isDeleted = 1, deletedAt = ? WHERE id = ? AND isDeleted = 0').run(now, customerId);
     if (!result.changes) throw new Error('Customer was not found');
     database.prepare('UPDATE transactions SET isDeleted = 1, deletedAt = ? WHERE customer_id = ? AND isDeleted = 0').run(now, customerId);
@@ -248,8 +253,8 @@ function registerIpcHandlers() {
       throw new Error('A valid customer, type, and positive amount are required');
     }
     const result = database.prepare(
-      'INSERT INTO transactions (customer_id, type, amount, description) VALUES (?, ?, ?, ?)'
-    ).run(data.customer_id, data.type, Number(data.amount), data.description?.trim() || null);
+      'INSERT INTO transactions (customer_id, type, amount, description, date) VALUES (?, ?, ?, ?, ?)'
+    ).run(data.customer_id, data.type, Number(data.amount), data.description?.trim() || null, localNow());
     return database.prepare('SELECT * FROM transactions WHERE id = ?').get(result.lastInsertRowid);
   });
 
@@ -266,7 +271,7 @@ function registerIpcHandlers() {
 
   ipcMain.handle('delete-transaction', (_event, transactionId) => {
     if (!transactionId) throw new Error('Transaction id is required');
-    const result = database.prepare('UPDATE transactions SET isDeleted = 1, deletedAt = ? WHERE id = ? AND isDeleted = 0').run(new Date().toISOString(), transactionId);
+    const result = database.prepare('UPDATE transactions SET isDeleted = 1, deletedAt = ? WHERE id = ? AND isDeleted = 0').run(localNow(), transactionId);
     if (!result.changes) throw new Error('Transaction was not found');
     return true;
   });
@@ -282,7 +287,7 @@ function registerIpcHandlers() {
   `).all());
 
   ipcMain.handle('delete-transactions-bulk', (_event, filters = {}) => {
-    const now = new Date().toISOString();
+    const now = localNow();
     let query = 'UPDATE transactions SET isDeleted = 1, deletedAt = ? WHERE isDeleted = 0';
     const values = [now];
     if (Array.isArray(filters.ids) && filters.ids.length) {
@@ -502,6 +507,8 @@ function createWindow() {
   if (!app.isPackaged) window.loadURL(process.env.VITE_DEV_SERVER_URL || 'http://localhost:5173');
   else window.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
 }
+
+app.commandLine.appendSwitch('disable-gpu-shader-disk-cache');
 
 app.whenReady().then(() => {
   recoverFromBackup();

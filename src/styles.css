@@ -180,7 +180,7 @@ td strong { font-size: 12px; }
 .debit-text { color: #d83d4f; font-weight: 700; white-space: nowrap; }
 .credit-text { color: #15803d; font-weight: 700; white-space: nowrap; }
 .balance-cell { font-weight: 700; white-space: nowrap; min-width: 120px; }
-.history-cell.balance-cell { font-weight: 700; white-space: nowrap; min-width: 120px; text-align: right; }
+.history-cell.balance-cell { font-weight: 700; white-space: nowrap; min-width: 120px; text-align: right; justify-self: end; }
 .balance-cell small { font-size: 9px; font-weight: 600; }
 .row-actions { white-space: nowrap; text-align: right; }
 .row-actions button { border: 0; background: transparent; color: #94a3b8; cursor: pointer; padding: 5px; font-size: 15px; }
@@ -484,7 +484,8 @@ input:focus, select:focus { border-color: #16a34a; box-shadow: 0 0 0 3px #16a34a
 .history-scroll.has-hscroll .ledger-scroll-indicator-x,
 .history-scroll.has-vscroll .ledger-scroll-indicator-y { opacity: 1; }
 .history-table-header { display: grid; grid-template-columns: 40px minmax(120px, 1.2fr) minmax(140px, 1.3fr) minmax(100px, 1fr) minmax(110px, 1.2fr) minmax(110px, 1.2fr) minmax(130px, 1.3fr) minmax(200px, 2fr) 50px; background: #f8fafc; border-bottom: 2px solid #e2e8f0; position: sticky; top: 0; z-index: 2; }
-.history-header-cell { padding: 10px 12px; color: #718096; font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; border-bottom: 2px solid #e2e8f0; background: #f8fafc; }
+.history-header-cell { padding: 6px 10px; color: #718096; font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; border-bottom: 2px solid #e2e8f0; background: #f8fafc; }
+.history-header-cell:nth-child(5), .history-header-cell:nth-child(6), .history-header-cell:nth-child(7) { text-align: right; }
 .history-header-cell small { display: block; text-transform: none; letter-spacing: 0; font-size: 9px; font-weight: 600; }
 .history-row { display: grid; grid-template-columns: 40px minmax(120px, 1.2fr) minmax(140px, 1.3fr) minmax(100px, 1fr) minmax(110px, 1.2fr) minmax(110px, 1.2fr) minmax(130px, 1.3fr) minmax(200px, 2fr) 50px; align-items: start; min-height: 48px; border-bottom: 1px solid #f0f3f7; }
 .history-row:hover { background: #f8fafc; }
@@ -503,8 +504,8 @@ input:focus, select:focus { border-color: #16a34a; box-shadow: 0 0 0 3px #16a34a
 
 /* Recycle Bin: 10 columns (history 8 + actions) */
 .recycle-scroll { overflow: auto; overflow-anchor: none; position: relative; max-height: calc(100vh - 220px); }
-.recycle-scroll .history-table-header { grid-template-columns: 40px minmax(100px, 1fr) minmax(120px, 1.2fr) minmax(140px, 1.3fr) minmax(100px, 1fr) minmax(100px, 1.2fr) minmax(100px, 1.2fr) minmax(120px, 1.3fr) minmax(180px, 1.8fr) 70px; }
-.recycle-scroll .history-row { grid-template-columns: 40px minmax(100px, 1fr) minmax(120px, 1.2fr) minmax(140px, 1.3fr) minmax(100px, 1fr) minmax(100px, 1.2fr) minmax(100px, 1.2fr) minmax(120px, 1.3fr) minmax(180px, 1.8fr) 70px; align-items: start; min-height: 48px; }
+.recycle-scroll .history-table-header { grid-template-columns: 40px minmax(100px, 1fr) minmax(120px, 1.2fr) minmax(140px, 1.3fr) minmax(100px, 1fr) minmax(110px, 1.2fr) minmax(110px, 1.2fr) minmax(130px, 1.3fr) minmax(200px, 2fr) 70px; }
+.recycle-scroll .history-row { grid-template-columns: 40px minmax(100px, 1fr) minmax(120px, 1.2fr) minmax(140px, 1.3fr) minmax(100px, 1fr) minmax(110px, 1.2fr) minmax(110px, 1.2fr) minmax(130px, 1.3fr) minmax(200px, 2fr) 70px; align-items: start; min-height: 48px; }
 
 /* Large screen responsive (1600px+) */
 @media (min-width: 1600px) {

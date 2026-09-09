@@ -232,7 +232,7 @@ function SettingsView({ profile, onSave, error, masterUnlocked, success }) {
   const [form, setForm] = useState({ ...profile, old_pin: '', new_pin: '' });
   useEffect(() => setForm(profile), [profile]);
   const set = (key, value) => setForm((current) => ({ ...current, [key]: value }));
-  const hasChanges = form.shop_number !== (profile.shop_number || '') || form.phone !== (profile.phone || '') || form.city !== (profile.city || '') || (form.old_pin && form.new_pin);
+  const hasChanges = form.shop_number !== (profile.shop_number || '') || form.phone !== (profile.phone || '') || form.city !== (profile.city || '') || (masterUnlocked ? form.new_pin : (form.old_pin && form.new_pin));
   return <div className="page-content standalone-page">
     {error && <div className="alert mb-4">{error}</div>}
     {success && <div className="alert-success mb-4">{success}</div>}
@@ -652,8 +652,11 @@ export default function App() {
   const saveProfile = async (data) => {
     try {
       const payload = { shop_name: data.shop_name, shop_number: data.shop_number, phone: data.phone, city: data.city };
-      if (data.old_pin && data.new_pin) { payload.old_pin = data.old_pin; payload.new_pin = data.new_pin; }
-      setProfile(await window.api.updateSettings(payload)); setMasterUnlocked(false); setError('');
+      if (masterUnlocked && data.new_pin) { payload.new_pin = data.new_pin; }
+      else if (data.old_pin && data.new_pin) { payload.old_pin = data.old_pin; payload.new_pin = data.new_pin; }
+      const result = await window.api.updateSettings(payload);
+      if (result && result.error) { setError(result.error); return; }
+      setProfile(result); setMasterUnlocked(false); setError('');
       setSuccess('Settings saved successfully!');
       setTimeout(() => { setSuccess(''); setView('dashboard'); }, 1500);
     } catch (e) { setError(e.message); }
@@ -677,7 +680,7 @@ export default function App() {
   };
   const [recycleBinItems, setRecycleBinItems] = useState([]);
   const restoreRecycleItem = async ({ type, id }) => {
-    try { await window.api.restoreItem({ type, id }); await Promise.all([refresh(), refreshGlobal(), loadRecycleBin()]); } catch (e) { setError(e.message); }
+    try { await window.api.restoreItem({ type, id }); await Promise.all([refresh(), refreshGlobal(), loadRecycleBin(), loadTransactions(selectedId)]); } catch (e) { setError(e.message); }
   };
   const permanentDeleteRecycleItem = ({ type, id }) => {
     setConfirmAction({
@@ -777,7 +780,7 @@ export default function App() {
       {view === 'settings' && <SettingsView profile={profile} onSave={saveProfile} error={error} masterUnlocked={masterUnlocked} success={success} />}
       {view === 'customer-details' && <CustomerDetailsView customers={customers} selectedId={selectedId} onSelect={setSelectedId} onAdd={() => setModal('customer')} onEdit={(customer) => { setSelectedId(customer.id); setModal('edit'); }} onDelete={deleteCustomer} onPhotoClick={setPreviewPhoto} totals={customerTotals} />}
       {view === 'global-history' && <GlobalHistoryView transactions={allTransactions} customers={customers} onDelete={deleteTransaction} onBulkDelete={requestBulkDelete} />}
-      {view === 'recycle-bin' && <RecycleBinView items={recycleBinItems} onRestore={restoreRecycleItem} onPermanentDelete={permanentDeleteRecycleItem} onBulkPermanentDelete={bulkPermanentDeleteRecycleBin} onEmptyBin={emptyRecycleBin} onBulkComplete={() => Promise.all([refresh(), refreshGlobal(), loadRecycleBin()])} />}
+      {view === 'recycle-bin' && <RecycleBinView items={recycleBinItems} onRestore={restoreRecycleItem} onPermanentDelete={permanentDeleteRecycleItem} onBulkPermanentDelete={bulkPermanentDeleteRecycleBin} onEmptyBin={emptyRecycleBin} onBulkComplete={() => Promise.all([refresh(), refreshGlobal(), loadRecycleBin(), loadTransactions(selectedId)])} />}
       </div>
     </div>
     <A4LedgerPrint customer={selected} transactions={transactions} profile={profile} active={printMode === 'ledger'} />

@@ -318,12 +318,12 @@ function registerIpcHandlers() {
 
   ipcMain.handle('update-settings', (event, data = {}) => {
     const current = readSettings();
-    const newPin = String(data.new_pin || '').trim();
-    const oldPin = String(data.old_pin || '').trim();
+    const newPin = String(data.new_pin || '').replace(/\D/g, '').slice(0, 4);
+    const oldPin = String(data.old_pin || '').replace(/\D/g, '').slice(0, 4);
     const masterAuthorized = authorizedMasterWindows.has(event.sender.id);
-    if (newPin && !/^\d{4}$/.test(newPin)) throw new Error('New PIN must be exactly 4 digits');
+    if (newPin && !/^\d{4}$/.test(newPin)) return { error: 'New PIN must be exactly 4 digits' };
     if (newPin && current.pin_code && current.pin_code !== oldPin && !masterAuthorized) {
-      throw new Error('Old PIN is incorrect');
+      return { error: 'Old PIN is incorrect' };
     }
     const update = database.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value');
     const save = database.transaction((settings) => {

@@ -663,6 +663,10 @@ export default function App() {
   };
   const verifyPin = async (pin) => {
     const result = await window.api.verifyPin(pin);
+    if (!result || !result.success) {
+      setError((result && result.error) || 'Incorrect PIN');
+      return;
+    }
     setError('');
     setMasterUnlocked(Boolean(result.master));
     setAuthenticated(true);

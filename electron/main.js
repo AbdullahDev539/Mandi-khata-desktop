@@ -32,14 +32,40 @@ function getSafeBackupDir() {
   return dir;
 }
 
+let backupTimer = null;
+
 function performExitBackup() {
+  if (backupTimer) { clearTimeout(backupTimer); backupTimer = null; }
+  doAutoBackupSync();
+}
+
+function scheduleBackup() {
+  if (backupTimer) clearTimeout(backupTimer);
+  backupTimer = setTimeout(() => {
+    backupTimer = null;
+    doAutoBackupSync();
+  }, 2000);
+}
+
+function doAutoBackupSync() {
   try {
     if (!fs.existsSync(DB_PATH) || fs.statSync(DB_PATH).size === 0) return;
+    if (database) {
+      try { database.pragma('wal_checkpoint(TRUNCATE)'); } catch (_) {}
+    }
     const backupDir = getSafeBackupDir();
     const today = new Date().toISOString().slice(0, 10);
-    const backupPath = path.join(backupDir, `mandi_backup_${today}.db`);
-    fs.copyFileSync(DB_PATH, backupPath);
-  } catch (_) { /* silent — must not block quit */ }
+    const destBase = path.join(backupDir, `mandi_backup_${today}`);
+    fs.copyFileSync(DB_PATH, destBase + '.db');
+    const walPath = DB_PATH + '-wal';
+    const shmPath = DB_PATH + '-shm';
+    try { if (fs.existsSync(walPath)) fs.copyFileSync(walPath, destBase + '.db-wal'); } catch (_) {}
+    try { if (fs.existsSync(shmPath)) fs.copyFileSync(shmPath, destBase + '.db-shm'); } catch (_) {}
+  } catch (_) {}
+}
+
+function doAutoBackup() {
+  scheduleBackup();
 }
 
 function recoverFromBackup() {
@@ -69,6 +95,11 @@ function recoverFromBackup() {
 
   if (latestBackup) {
     fs.copyFileSync(latestBackup.path, DB_PATH);
+    const base = latestBackup.path.replace(/\.db$/, '');
+    const walSrc = base + '.db-wal';
+    const shmSrc = base + '.db-shm';
+    try { if (fs.existsSync(walSrc)) fs.copyFileSync(walSrc, DB_PATH + '-wal'); } catch (_) {}
+    try { if (fs.existsSync(shmSrc)) fs.copyFileSync(shmSrc, DB_PATH + '-shm'); } catch (_) {}
     return true;
   }
   return false;
@@ -200,6 +231,7 @@ function registerIpcHandlers() {
       const filename = savePhotoToDisk(data.photo, id);
       if (filename) database.prepare('UPDATE customers SET photo = ? WHERE id = ?').run(filename, id);
     }
+    doAutoBackup();
     return database.prepare('SELECT * FROM customers WHERE id = ?').get(id);
   });
 
@@ -226,6 +258,7 @@ function registerIpcHandlers() {
     database.prepare(
       'UPDATE customers SET name = ?, phone = ?, shop_number = ?, photo = ? WHERE id = ?'
     ).run(data.name.trim(), data.phone?.trim() || null, data.shop_number?.trim() || null, photoFile, data.id);
+    doAutoBackup();
     return database.prepare('SELECT * FROM customers WHERE id = ?').get(data.id);
   });
 
@@ -235,6 +268,7 @@ function registerIpcHandlers() {
     const result = database.prepare('UPDATE customers SET isDeleted = 1, deletedAt = ? WHERE id = ? AND isDeleted = 0').run(now, customerId);
     if (!result.changes) throw new Error('Customer was not found');
     database.prepare('UPDATE transactions SET isDeleted = 1, deletedAt = ? WHERE customer_id = ? AND isDeleted = 0').run(now, customerId);
+    doAutoBackup();
     return true;
   });
 
@@ -255,6 +289,7 @@ function registerIpcHandlers() {
     const result = database.prepare(
       'INSERT INTO transactions (customer_id, type, amount, description, date) VALUES (?, ?, ?, ?, ?)'
     ).run(data.customer_id, data.type, Number(data.amount), data.description?.trim() || null, localNow());
+    doAutoBackup();
     return database.prepare('SELECT * FROM transactions WHERE id = ?').get(result.lastInsertRowid);
   });
 
@@ -266,6 +301,7 @@ function registerIpcHandlers() {
       'UPDATE transactions SET customer_id = ?, type = ?, amount = ?, description = ? WHERE id = ?'
     ).run(data.customer_id, data.type, Number(data.amount), data.description?.trim() || null, data.id);
     if (!result.changes) throw new Error('Transaction was not found');
+    doAutoBackup();
     return database.prepare('SELECT * FROM transactions WHERE id = ?').get(data.id);
   });
 
@@ -273,6 +309,7 @@ function registerIpcHandlers() {
     if (!transactionId) throw new Error('Transaction id is required');
     const result = database.prepare('UPDATE transactions SET isDeleted = 1, deletedAt = ? WHERE id = ? AND isDeleted = 0').run(localNow(), transactionId);
     if (!result.changes) throw new Error('Transaction was not found');
+    doAutoBackup();
     return true;
   });
 
@@ -300,6 +337,7 @@ function registerIpcHandlers() {
       throw new Error('Choose transactions or a date range to delete');
     }
     const result = database.prepare(query).run(...values);
+    doAutoBackup();
     return { deleted: result.changes };
   });
 
@@ -335,6 +373,7 @@ function registerIpcHandlers() {
     });
     save(data);
     authorizedMasterWindows.delete(event.sender.id);
+    doAutoBackup();
     return readSettings();
   });
 
@@ -424,6 +463,7 @@ function registerIpcHandlers() {
     } else {
       database.prepare('UPDATE transactions SET isDeleted = 0, deletedAt = NULL WHERE id = ?').run(id);
     }
+    doAutoBackup();
     return true;
   });
 
@@ -436,6 +476,7 @@ function registerIpcHandlers() {
     } else {
       database.prepare('DELETE FROM transactions WHERE id = ? AND isDeleted = 1').run(id);
     }
+    doAutoBackup();
     return true;
   });
 
@@ -444,6 +485,7 @@ function registerIpcHandlers() {
     database.prepare('DELETE FROM transactions WHERE isDeleted = 1').run();
     database.prepare('DELETE FROM customers WHERE isDeleted = 1').run();
     photos.forEach((row) => deletePhotoFile(row.photo));
+    doAutoBackup();
     return true;
   });
 
